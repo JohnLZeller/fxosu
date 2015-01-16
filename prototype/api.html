@@ -1,0 +1,24 @@
+<html>
+<head>
+	<script src="https://code.jquery.com/jquery-2.1.3.min.js"></script>
+	<title>FxOSU: Intelligent Network Requests</title>
+</head>
+
+<body>
+	<h1>Required Statistics</h1>
+	<table>
+		<tr><th>Battery Level:</th><td style="margin: 5px;" id="batteryLevel"></td></tr>
+		<tr><th>Battery Charging:</th><td style="margin: 5px;" id="batteryCharging"></td></tr>
+		<tr><th>Recent Since:</th><td style="margin: 5px;" id="recentSince"></td></tr>
+		<tr><th>Recent RX:</th><td style="margin: 5px;" id="recentRx"></td></tr>
+		<tr><th>Recent TX:</th><td style="margin: 5px;" id="recentTx"></td></tr>
+		<tr><th>Latency Network Info:</th><td style="margin: 5px;" id="latencyNetworkInfo"></td></tr>
+	</table>
+</body>
+	<script>
+		$.getScript("netapi.js", function(){
+	   		//if successfully imported
+	   		MozIsNowGood();
+		});
+	</script>
+</html>
