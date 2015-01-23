@@ -1,0 +1,5 @@
+
+component {6d8e2f2c-4c86-4ddf-9744-dbb72b5ad9af} components/prototypeapi.js
+contract @mozilla.org/prototype;1 {6d8e2f2c-4c86-4ddf-9744-dbb72b5ad9af} 
+category JavaScript-navigator-property prototype @mozilla.org/prototype;1
+

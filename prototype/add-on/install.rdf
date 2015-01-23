@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<r:RDF xmlns="http://www.mozilla.org/2004/em-rdf#"
+       xmlns:r="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
+  <r:Description about="urn:mozilla:install-manifest">
+    <creator>John Zeller, Jonathan McNeil, Pok Yan Tjiam</creator>
+    <description>FxOSU Prototype API for allowing intelligent network requests.</description>
+    <homepageURL>https://oregonstateuniversity-my.sharepoint.com/personal/tjiamp_onid_oregonstate_edu/capstone02_project</homepageURL>
+    <id>fxosuprototypeapi@example.org</id>
+    <name>FxOSU Prototype API</name>
+    <version>1</version>
+
+    <type>2</type>
+
+    <targetApplication>
+      <r:Description>
+        <id>{ec8030f7-c20a-464f-9b0e-13a3a9e97384}</id> <!-- GUID for Firefox -->
+        <minVersion>35.0a1</minVersion>
+        <maxVersion>38.0a1</maxVersion>
+      </r:Description>
+    </targetApplication>
+  </r:Description>
+</r:RDF>
