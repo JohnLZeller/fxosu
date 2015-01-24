@@ -1,7 +1,10 @@
 <!-- This demo requires that the add-on be installed, in order for it to work -->
 <html>
 <head>
-	<script src="https://code.jquery.com/jquery-2.1.3.min.js"></script>
+	<script>
+		var thing = window.navigator.MozIsNowGood();
+		alert(thing);
+	</script>
 	<title>FxOSU: Intelligent Network Requests</title>
 </head>
 
@@ -16,10 +19,4 @@
 		<tr><th>Latency Network Info:</th><td style="margin: 5px;" id="latencyNetworkInfo"></td></tr>
 	</table>
 </body>
-	<script>
-		$.getScript("api.js", function(){
-	   		//if successfully imported
-	   		MozIsNowGood();
-		});
-	</script>
 </html>
