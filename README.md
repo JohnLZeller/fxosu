@@ -46,6 +46,7 @@ Write a Web IDL specification for the API implementation
 * [MDN Introduction](https://developer.mozilla.org/en-US/docs/Introduction)
 * [Adding APIs to navigator object](https://developer.mozilla.org/en-US/docs/Mozilla/Developer_guide/Adding_APIs_to_the_navigator_object)
 * [Example webapi add-on via manifect](https://github.com/autonome/webapi-addon-via-manifest)
+
 ### APIs
 * [Web API Interfaces](https://developer.mozilla.org/en-US/docs/Web/API)
 * [Battery Level](https://developer.mozilla.org/en-US/docs/Web/API/BatteryManager.level)
