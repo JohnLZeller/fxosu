@@ -4,6 +4,7 @@
 The prototype works by running JavaScript in a Firefox bootstrapped add-on, thus providing access to APIs that need privileged access to use.
 In order to install, you must zip the contents of the prototype directory, renaming it to a .xpi file. From within the prototype directory:
 > zip -r prototypeapi.xpi ./*
+
 Next, open Firefox and go to Tools->Add-ons and then select "Install Add-on From File..." from the gear icon dropdown menu. Select the prototypeapi.xpi file from the prototype directory and then follow the Firefox install windows to finish the installation.
 
 ## Implementation
@@ -42,24 +43,24 @@ Write a Web IDL specification for the API implementation
 
 ## Useful Resources
 ### Documentation
-[MDN Introduction](https://developer.mozilla.org/en-US/docs/Introduction)
-[Adding APIs to navigator object](https://developer.mozilla.org/en-US/docs/Mozilla/Developer_guide/Adding_APIs_to_the_navigator_object)
-[Example webapi add-on via manifect](https://github.com/autonome/webapi-addon-via-manifest)
+* [MDN Introduction](https://developer.mozilla.org/en-US/docs/Introduction)
+* [Adding APIs to navigator object](https://developer.mozilla.org/en-US/docs/Mozilla/Developer_guide/Adding_APIs_to_the_navigator_object)
+* [Example webapi add-on via manifect](https://github.com/autonome/webapi-addon-via-manifest)
 ### APIs
-[Web API Interfaces](https://developer.mozilla.org/en-US/docs/Web/API)
-[Battery Level](https://developer.mozilla.org/en-US/docs/Web/API/BatteryManager.level)
-[Charging State](https://developer.mozilla.org/en-US/docs/Web/API/BatteryManager.charging)
-[Recent RX/RX Data](https://developer.mozilla.org/en-US/docs/Web/API/MozNetworkStatsData)
-[Network Stats API](https://developer.mozilla.org/en-US/docs/Web/API/Network_Stats_API)
-[Latency network info (maybe?)](https://developer.mozilla.org/en-US/docs/Web/API/Performance.timing)
-[Wifi](https://developer.mozilla.org/en-US/docs/Web/API/MozWifiConnectionInfoEvent)
-[MobileNetworkInfo](https://developer.mozilla.org/en-US/docs/Web/API/MozMobileNetworkInfo)
-[CellInfo](https://developer.mozilla.org/en-US/docs/Web/API/MozMobileCellInfo)
-[MobileConnection](https://developer.mozilla.org/en-US/docs/Web/API/MozMobileConnectionInfo)
-[NetworkStats](https://developer.mozilla.org/en-US/docs/Web/API/MozNetworkStats)
-[NetworkStatsManager](https://developer.mozilla.org/en-US/docs/Web/API/MozNetworkStatsManager)
+* [Web API Interfaces](https://developer.mozilla.org/en-US/docs/Web/API)
+* [Battery Level](https://developer.mozilla.org/en-US/docs/Web/API/BatteryManager.level)
+* [Charging State](https://developer.mozilla.org/en-US/docs/Web/API/BatteryManager.charging)
+* [Recent RX/RX Data](https://developer.mozilla.org/en-US/docs/Web/API/MozNetworkStatsData)
+* [Network Stats API](https://developer.mozilla.org/en-US/docs/Web/API/Network_Stats_API)
+* [Latency network info (maybe?)](https://developer.mozilla.org/en-US/docs/Web/API/Performance.timing)
+* [Wifi](https://developer.mozilla.org/en-US/docs/Web/API/MozWifiConnectionInfoEvent)
+* [MobileNetworkInfo](https://developer.mozilla.org/en-US/docs/Web/API/MozMobileNetworkInfo)
+* [CellInfo](https://developer.mozilla.org/en-US/docs/Web/API/MozMobileCellInfo)
+* [MobileConnection](https://developer.mozilla.org/en-US/docs/Web/API/MozMobileConnectionInfo)
+* [NetworkStats](https://developer.mozilla.org/en-US/docs/Web/API/MozNetworkStats)
+* [NetworkStatsManager](https://developer.mozilla.org/en-US/docs/Web/API/MozNetworkStatsManager)
 
 # Contributors
-John Zeller - johnlzeller@gmail.com - IRC: zeller
-Pok Yan Tjiam - tjiamp@onid.oregonstate.edu
-Jonathan McNeil - mcneilj@onid.oregonstate.edu
+* John Zeller - johnlzeller@gmail.com - IRC: zeller
+* Pok Yan Tjiam - tjiamp@onid.oregonstate.edu
+* Jonathan McNeil - mcneilj@onid.oregonstate.edu
