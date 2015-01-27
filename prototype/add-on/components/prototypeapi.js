@@ -1,68 +1,90 @@
 // FxOSU: Intelligent Network Requests
 
-// Web API Interfaces:         https://developer.mozilla.org/en-US/docs/Web/API
-
-// Needs to
-//    Battery Level:           https://developer.mozilla.org/en-US/docs/Web/API/BatteryManager.level
-//    Charging State:          https://developer.mozilla.org/en-US/docs/Web/API/BatteryManager.charging
-//    Recent RX/RX Data:       https://developer.mozilla.org/en-US/docs/Web/API/MozNetworkStatsData
-//            https://developer.mozilla.org/en-US/docs/Web/API/Network_Stats_API
-//    Latency network info: 
-//        maybe?               https://developer.mozilla.org/en-US/docs/Web/API/Performance.timing
-
-// Also
-//    be Developer configurable
-//    function without error on Desktop, Android and OS
-
-// Other Interesting:
-//    Wifi:                    https://developer.mozilla.org/en-US/docs/Web/API/MozWifiConnectionInfoEvent
-//    MobileNetworkInfo:       https://developer.mozilla.org/en-US/docs/Web/API/MozMobileNetworkInfo
-//    CellInfo:                https://developer.mozilla.org/en-US/docs/Web/API/MozMobileCellInfo
-//    MobileConnection:        https://developer.mozilla.org/en-US/docs/Web/API/MozMobileConnectionInfo
-//    NetworkStats:            https://developer.mozilla.org/en-US/docs/Web/API/MozNetworkStats
-//    NetworkStatsManager:     https://developer.mozilla.org/en-US/docs/Web/API/MozNetworkStatsManager
-
 Components.utils.import("resource://gre/modules/XPCOMUtils.jsm");
 
-function MozIsNowGood() {
+function MozIsNowGood(level) {
+  level = typeof level !== 'undefined' ? level : 2;
+  // Levels of certainty
+    // 1 - High
+    // 2 - Moderate
+    // 3 - Low
+
   //this.wrappedJSObject = this;
 
-  // Battery Stats
-  //var battery = window.navigator.battery;
-  //document.getElementById('batteryLevel').innerHTML = battery.level * 100;
-  //document.getElementById('batteryCharging').innerHTML = battery.charging; // takes about 5 seconds to populate
+  function batteryLevel() {
+    var battery = window.navigator.battery;
+    return battery.level;
+  }
 
-  // Network Stats
-  /*
-  var rate = navigator.mozNetworkStats.sampleRate;
-  var max  = navigator.mozNetworkStats.maxStorageSample;
+  function chargingState() {
+    var battery = window.navigator.battery;
+    return battery.charging; // takes about 5 seconds to populate
+  }
 
-  var config = {
-    start: new Date() - (rate * max), // This allows to get all the available data chunks.
-    end  : new Date(),
-    connectionType: 'wifi'
-  };
+  function recentRxTx() {
+    // Code below from an example
+    var rate = navigator.mozNetworkStats.sampleRate;
+    var max  = navigator.mozNetworkStats.maxStorageSample;
 
-  var request = navigator.mozNetworkStats.getNetworkStats(config);
-
-  request.onsuccess = function () {
-    var total = {
-      receive: 0,
-      send   : 0
+    var config = {
+      start: new Date() - (rate * max), // This allows to get all the available data chunks.
+      end  : new Date(),
+      connectionType: 'wifi'
     };
 
-    this.result.forEach(function (chunk) {
-      total.receive += chunk.rxBytes;
-      total.send    += chunk.txBytes;
-    });
-  }*/
-  //var statsData = MozNetworkStatsData;
-  //alert("");
+    var request = navigator.mozNetworkStats.getNetworkStats(config);
 
-  //document.getElementById('recentSince').innerHTML = config.start.toString());
-  //document.getElementById('recentRx').innerHTML = (total.receive * 1000).toFixed(2);
-  //document.getElementById('recentTx').innerHTML = (total.send * 1000).toFixed(2);
-  //document.getElementById('latencyNetworkInfo').innerHTML = "";
+    request.onsuccess = function () {
+      var total = {
+        receive: 0,
+        send   : 0
+      };
+
+      this.result.forEach(function (chunk) {
+        total.receive += chunk.rxBytes;
+        total.send    += chunk.txBytes;
+      });
+    }
+
+    return total.receive, total.send;
+  }
+
+  function latencyInfo() {
+
+  }
+
+  // Non-Requirement functionality
+  function connectionType() {
+
+  }
+
+  function connectionQuality() {
+
+  }
+
+  // Logic - Currently placeholder logic
+  switch(level) {
+    case 1:
+      if (batteryLevel() > 0.90) {
+        return true;
+      } else {
+        return false;
+      }
+    case 2:
+      if (batteryLevel() > 0.60) {
+        return true;
+      } else {
+        return false;
+      }
+    case 3:
+      if (batteryLevel() > 0.30) {
+        return true;
+      } else {
+        return false;
+      }
+    default:
+      return true; // so we don't block
+  }
 }
 MozIsNowGood.prototype = {
 
