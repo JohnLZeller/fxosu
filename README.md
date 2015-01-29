@@ -5,11 +5,13 @@ The purpose of this API is to give a boolean go/nogo answer about whether a netw
 
 ### Overview
 The API will be divided into 3 parts:
+
 1. Core service that monitors network conditions and stores metadata
 2. Service for handling requests for that data, or sending notifications about it
 3. Web API code that proxies requests from web content to that core service and back
 
 At a macro level, we are going to take into account at least the following data:
+
 * Battery level
 * Battery charging state
 * rxBytes and txBytes from arbitrary time window
