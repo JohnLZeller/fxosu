@@ -1,5 +1,31 @@
 # FxOSU: Intelligent Network Requests
 
+## API Architecture
+The purpose of this API is to give a boolean go/nogo answer about whether a network request should be made right now. This API will be configurable to allow a level of certainty, but the goal is to keep the output as binary as possible.
+
+### Overview
+The API will be divided into 3 parts:
+1. Core service that monitors network conditions and stores metadata
+2. Service for handling requests for that data, or sending notifications about it
+3. Web API code that proxies requests from web content to that core service and back
+
+At a macro level, we are going to take into account at least the following data:
+* Battery level
+* Battery charging state
+* rxBytes and txBytes from arbitrary time window
+* Network latency
+* Type of connection
+* Quality of connection
+
+The API will be configurable to 3 level of certainty; high, moderate, and low, signified by 1, 2, and 3, respectively. The API will default to 2.
+
+The flow will be this (We will call the API mozIsNowGood, for the moment):
+1. Call is made to window.navigator.mozIsNowGood() from a web app, without passing in configuration level, so defaults to 2.
+2. JS called by mozIsNowGood enters a switch/case to set level to 2, or moderate certainty.
+3. JS enters logic that takes into account the 6 data points listed above, and comes to a go/nogo answer
+3.1. Needs to be fleshed out
+4. JS returns go/nogo answer to the caller of window.navigator.mozIsNowGood()
+
 ## Prototype
 The prototype works by running JavaScript in a Firefox bootstrapped add-on, thus providing access to APIs that need privileged access to use.
 In order to install, you must zip the contents of the prototype directory, renaming it to a .xpi file. From within the prototype directory:
@@ -54,6 +80,7 @@ Write a Web IDL specification for the API implementation
 * [Recent RX/RX Data](https://developer.mozilla.org/en-US/docs/Web/API/MozNetworkStatsData)
 * [Network Stats API](https://developer.mozilla.org/en-US/docs/Web/API/Network_Stats_API)
 * [Latency network info (maybe?)](https://developer.mozilla.org/en-US/docs/Web/API/Performance.timing)
+* [Connection](https://developer.mozilla.org/en-US/docs/Web/API/Connection)
 * [Wifi](https://developer.mozilla.org/en-US/docs/Web/API/MozWifiConnectionInfoEvent)
 * [MobileNetworkInfo](https://developer.mozilla.org/en-US/docs/Web/API/MozMobileNetworkInfo)
 * [CellInfo](https://developer.mozilla.org/en-US/docs/Web/API/MozMobileCellInfo)

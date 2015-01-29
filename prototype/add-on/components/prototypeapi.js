@@ -29,7 +29,7 @@ function MozIsNowGood(level) {
     var config = {
       start: new Date() - (rate * max), // This allows to get all the available data chunks.
       end  : new Date(),
-      connectionType: 'wifi'
+      connectionType: connectionType()
     };
 
     var request = navigator.mozNetworkStats.getNetworkStats(config);
@@ -55,11 +55,20 @@ function MozIsNowGood(level) {
 
   // Non-Requirement functionality
   function connectionType() {
-
+    var connection = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
+    return connection.type;
   }
 
   function connectionQuality() {
-
+    // Possibly Useful
+      // navigator.connection.bandwidth;
+      // navigator.connection.metered; // pay-per-use
+      
+    switch (connectionType()) {
+      case 'wifi':
+      case 'cellular':
+      default:
+    }
   }
 
   // Logic - Currently placeholder logic
