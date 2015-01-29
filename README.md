@@ -20,10 +20,11 @@ At a macro level, we are going to take into account at least the following data:
 The API will be configurable to 3 level of certainty; high, moderate, and low, signified by 1, 2, and 3, respectively. The API will default to 2.
 
 The flow will be this (We will call the API mozIsNowGood, for the moment):
+
 1. Call is made to window.navigator.mozIsNowGood() from a web app, without passing in configuration level, so defaults to 2.
 2. JS called by mozIsNowGood enters a switch/case to set level to 2, or moderate certainty.
 3. JS enters logic that takes into account the 6 data points listed above, and comes to a go/nogo answer
-3.1. Needs to be fleshed out
+  * Needs to be fleshed out
 4. JS returns go/nogo answer to the caller of window.navigator.mozIsNowGood()
 
 ## Prototype
