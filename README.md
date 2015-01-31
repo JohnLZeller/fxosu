@@ -28,6 +28,14 @@ The flow will be this (We will call the API mozIsNowGood, for the moment):
 4. JS returns go/nogo answer to the caller of window.navigator.mozIsNowGood()
 
 ## Prototype
+### add-on-via-sdk
+To run, move into this directory and run:
+> jpm run
+
+If jpm is not installed, then run:
+> npm install -g jpm
+
+### add-on-via-manifest
 The prototype works by running JavaScript in a Firefox bootstrapped add-on, thus providing access to APIs that need privileged access to use.
 In order to install, you must zip the contents of the prototype directory, renaming it to a .xpi file. From within the prototype directory:
 > zip -r prototypeapi.xpi ./*
