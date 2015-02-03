@@ -50,7 +50,36 @@ function MozIsNowGood(level) {
   }
 
   function latencyInfo() {
-
+    window.onload = function(){
+      setTimeout(function(){
+        var t = window.performance.timing;
+        timeInfo = {};
+        timeInfo.navigation_type = window.performance.navigation.type;
+        timeInfo.navigation_redirectCount = window.performance.navigation.redirectCount;
+        timeInfo.prep = t.redirectStart - t.navigationStart;
+        timeInfo.redirect = t.redirectEnd - t.redirectStart;
+        timeInfo.unload = t.unloadEventEnd - t.unloadEventStart;
+        timeInfo.r_to_f = t.fetchStart - t.redirectEnd;
+        timeInfo.fetch = t.domainLookupStart - t.fetchStart;
+        timeInfo.dnslookup = t.domainLookupEnd - t.domainLookupStart;
+        timeInfo.d_to_c = t.connectStart - t.domainLookupEnd;
+        timeInfo.connection = t.connectEnd - t.connectStart;
+        timeInfo.c_to_req = t.requestStart - t.connectEnd;
+        timeInfo.request = t.responseStart - t.requestStart;
+        timeInfo.response = t.responseEnd - t.responseStart;
+        timeInfo.res_to_dom = t.domLoading - t.responseEnd;
+        timeInfo.domLoading = t.domInteractive - t.domLoading;
+        timeInfo.domInteractive = t.domContentLoadedEventStart - t.domInteractive;
+        timeInfo.domContentLoaded = t.domContentLoadedEventEnd - t.domContentLoadedEventStart;
+        timeInfo.domComplete = t.domComplete - t.domContentLoadedEventEnd;
+        timeInfo.dom_to_onload = t.loadEventStart - t.domComplete;
+        timeInfo.loadEvent = t.loadEventEnd - t.loadEventStart;
+        timeInfo.networkLatency = t.responseEnd - t.fetchStart;
+        timeInfo.pageLoadingTime = t.loadEventEnd - t.responseEnd;
+        timeInfo.totalTimeElapsed = t.loadEventEnd - t.navigationStart;
+      }, 0);
+    }
+    return timeInfo;
   }
 
   // Non-Requirement functionality
