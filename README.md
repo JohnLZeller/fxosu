@@ -49,25 +49,25 @@ Coming soon! :)
 
 ## Requirements
 ### Week 6 (February 9th to 13th)
-1. Analyze existing efforts (ie ServiceWorkers, RequestSync) to determine if they can be integrated with our system
-2. The prototype API should be written in JavaScript
+1. Analyze existing efforts (ie ServiceWorkers, RequestSync) to determine if they can be integrated with our system.
+2. The prototype API should be written in JavaScript.
 3. The prototype API should be callable by JavaScript executing in a web sandbox.
-4. The prototype API should be developer configurable, to provide a level of certainty about network quality
+4. The prototype API should be developer configurable, to provide a level of certainty about network quality.
 5. The prototype API should be able to access data on the charging state of the device in order to determine if a task should be executed.
 6. The prototype API should be able to access data on the battery level of the device in order to determine if a task should be executed.
-7. The prototype API should be able to access data about recent tx/rx data to determine if a task should be executed.
+7. The prototype API should be able to see if the device has an internet connection to determine if a task should be executed.
 8. The prototype API should be able to access latency-related network information to determine if a task should be executed.
-9. The prototype API should be able to function without error on Firefox OS, Firefox for Android, and Firefox for Desktop
+9. The prototype API should be able to function without error on Firefox for Desktop.
 
 ### Week 10 (March 9th to 13th)
-10. The API should be written in C++
+10. The API should be written in C++ and/or JavaScript.
 11. The API should integrate with existing efforts wherever possible.
-12. The API should be developer configurable, to provide a level of certainty about network quality
+12. The API should be developer configurable, to provide a level of certainty about network quality.
 13. The API should passively collect network status information.
-14. The API should take into account the type of network connection, whether it be wifi, cellular data, etc
+14. The API should take into account the type of network connection, whether it be wifi, cellular data, etc.
 15. The API should be able to access data about system load on the device in order to determine if the device can handle another task.
 16. The API should be able to access data on the battery level of the device in order to determine if a task should be executed.
-17. The API should be able to access data about recent tx/rx data
+17. The API should be able to access data about recent tx/rx data.
 18. The API should be able to access latency-related network information to determine if a task should be executed.
 
 ### Spring Term (May 4th to 8th)
