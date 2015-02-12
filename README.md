@@ -71,12 +71,12 @@ Coming soon! :)
 18. The API should be able to access latency-related network information to determine if a task should be executed.
 
 ### Spring Term (May 4th to 8th)
-The API should be able to access data on the charging state of the device in order to determine if a task should be executed.
-The API should analyze network data to determine patterns in network reliability
-The API should be able to function without error on Firefox OS, Firefox for Android, and Firefox for Desktop
-The test app for the API should benchmark device resource usage, contrasting use with the API and use without the API
-The test app for the API should be written to function on Firefox OS, Firefox for Android, and Firefox for Desktop
-Write a Web IDL specification for the API implementation
+19. The API should be able to access data on the charging state of the device in order to determine if a task should be executed.
+20. The API should analyze network data to determine patterns in network reliability
+21. The API should be able to function without error on Firefox OS, Firefox for Android, and Firefox for Desktop
+22. The test app for the API should benchmark device resource usage, contrasting use with the API and use without the API
+23. The test app for the API should be written to function on Firefox OS, Firefox for Android, and Firefox for Desktop
+24. Write a Web IDL specification for the API implementation
 
 ## Useful Resources
 ### Documentation
