@@ -1,0 +1,709 @@
+diff --git a/b2g/installer/package-manifest.in b/b2g/installer/package-manifest.in
+--- a/b2g/installer/package-manifest.in
++++ b/b2g/installer/package-manifest.in
+@@ -379,16 +379,18 @@
+ @RESPATH@/components/ConsoleAPI.manifest
+ @RESPATH@/components/ConsoleAPIStorage.js
+ @RESPATH@/components/BrowserElementParent.manifest
+ @RESPATH@/components/BrowserElementParent.js
+ @RESPATH@/components/ContactManager.js
+ @RESPATH@/components/ContactManager.manifest
+ @RESPATH@/components/PhoneNumberService.js
+ @RESPATH@/components/PhoneNumberService.manifest
++@RESPATH@/components/FxOSUService.js
++@RESPATH@/components/FxOSUService.manifest
+ @RESPATH@/components/NotificationStorage.js
+ @RESPATH@/components/NotificationStorage.manifest
+ @RESPATH@/components/PermissionSettings.js
+ @RESPATH@/components/PermissionSettings.manifest
+ @RESPATH@/components/PermissionPromptService.js
+ @RESPATH@/components/PermissionPromptService.manifest
+ @RESPATH@/components/AlarmsManager.js
+ @RESPATH@/components/AlarmsManager.manifest
+diff --git a/browser/installer/package-manifest.in b/browser/installer/package-manifest.in
+--- a/browser/installer/package-manifest.in
++++ b/browser/installer/package-manifest.in
+@@ -548,16 +548,18 @@
+ @RESPATH@/components/RequestSyncScheduler.js
+ 
+ @RESPATH@/components/PermissionSettings.js
+ @RESPATH@/components/PermissionSettings.manifest
+ @RESPATH@/components/ContactManager.js
+ @RESPATH@/components/ContactManager.manifest
+ @RESPATH@/components/PhoneNumberService.js
+ @RESPATH@/components/PhoneNumberService.manifest
++@RESPATH@/components/FxOSUService.js
++@RESPATH@/components/FxOSUService.manifest
+ @RESPATH@/components/NotificationStorage.js
+ @RESPATH@/components/NotificationStorage.manifest
+ @RESPATH@/components/AlarmsManager.js
+ @RESPATH@/components/AlarmsManager.manifest
+ @RESPATH@/components/Push.js
+ @RESPATH@/components/Push.manifest
+ @RESPATH@/components/PushNotificationService.js
+ 
+diff --git a/dom/apps/PermissionsTable.jsm b/dom/apps/PermissionsTable.jsm
+--- a/dom/apps/PermissionsTable.jsm
++++ b/dom/apps/PermissionsTable.jsm
+@@ -210,16 +210,22 @@ this.PermissionsTable =  { geolocation: 
+                              certified: ALLOW_ACTION
+                            },
+                            attention: {
+                              app: DENY_ACTION,
+                              trusted: DENY_ACTION,
+                              privileged: DENY_ACTION,
+                              certified: ALLOW_ACTION
+                            },
++                           fxosuservice: {
++                             app: DENY_ACTION,
++                             trusted: DENY_ACTION,
++                             privileged: DENY_ACTION,
++                             certified: ALLOW_ACTION
++                           },
+                            "global-clickthrough-overlay": {
+                              app: DENY_ACTION,
+                              trusted: DENY_ACTION,
+                              privileged: ALLOW_ACTION,
+                              certified: ALLOW_ACTION
+                            },
+                            "moz-attention": {
+                              app: DENY_ACTION,
+diff --git a/dom/fxosu/FxOSUService.js b/dom/fxosu/FxOSUService.js
+new file mode 100644
+--- /dev/null
++++ b/dom/fxosu/FxOSUService.js
+@@ -0,0 +1,397 @@
++/* This Source Code Form is subject to the terms of the Mozilla Public
++ * License, v. 2.0. If a copy of the MPL was not distributed with this file,
++ * You can obtain one at http://mozilla.org/MPL/2.0/. */
++
++"use strict";
++
++const DEBUG = true;
++function debug(s) { dump("-*- FxOSUService.js: " + s + "\n"); }
++
++const Cc = Components.classes;
++const Ci = Components.interfaces;
++const Cu = Components.utils;
++var lastMemEventRes = 0;
++var lastMemEventExplicit = 0;
++
++Cu.import("resource://gre/modules/XPCOMUtils.jsm");
++Cu.import("resource://gre/modules/Services.jsm");
++Cu.import("resource://gre/modules/DOMRequestHelper.jsm");
++
++XPCOMUtils.defineLazyServiceGetter(this, "cpmm",
++                                   "@mozilla.org/childprocessmessagemanager;1",
++                                   "nsISyncMessageSender");
++
++// Component interface import factory
++function importFactory(contractIdentification, interfaceName) {
++  try {
++    return Cc[contractIdentification].createInstance(interfaceName);
++  }
++  catch(err) {
++    try {
++      return Cc[contractIdentification].getService(interfaceName);
++    } catch(e) {
++      return null;
++    }
++  }
++}
++
++// Import components
++var networkLinkService = importFactory("@mozilla.org/network/network-link-service;1", Ci.nsINetworkLinkService);
++var memoryReportManager = importFactory("@mozilla.org/memory-reporter-manager;1", Ci.nsIMemoryReporterManager);
++
++const FXOSUSERVICE_CID = "{9c72ce25-06d6-4fb8-ae9c-431652fce848}";
++const FXOSUSERVICE_CONTRACTID = "@mozilla.org/fxosuService;1";
++
++// Setup observer receiveMessage function
++var requestStats = [];
++var responseStats = [];
++
++function receiveMessage(aMessage) {
++  switch (aMessage.name) {
++    case "NetworkStatsService:Request":
++      requestStats.push(aMessage.json);
++      break;
++    case "NetworkStatsService:Response":
++      responseStats.push(aMessage.json);
++      break;
++    default:
++      if (DEBUG) {
++        debug("Wrong message: " + aMessage.name);
++      }
++  }
++}
++
++// Setup listeners
++const FXOSU_IPC_MSG_NAMES = ["NetworkStatsService:Request",
++                             "NetworkStatsService:Response"];
++
++FXOSU_IPC_MSG_NAMES.forEach(function(aMsgName) {
++  cpmm.addMessageListener(aMsgName, receiveMessage);
++}, receiveMessage);
++
++function FxOSUService()
++{
++  if (DEBUG) {
++    debug("FxOSUService Constructor");
++  }
++}
++
++FxOSUService.prototype = {
++  __proto__: DOMRequestIpcHelper.prototype,
++
++  debug: function(s) { this.window.console.log("-*- FxOSUService.js: " + s + "\n"); },
++
++  init: function(aWindow) {
++    this.window = aWindow;
++
++    // Set navigator.mozNetworkStats to null.
++    if (!Services.prefs.getBoolPref("dom.mozNetworkStats.enabled")) {
++      return null;
++    }
++
++    let principal = this.window.document.nodePrincipal;
++    let secMan = Services.scriptSecurityManager;
++    let perm = principal == secMan.getSystemPrincipal() ?
++                 Ci.nsIPermissionManager.ALLOW_ACTION :
++                 Services.perms.testExactPermissionFromPrincipal(principal,
++                                                                 "networkstats-manage");
++
++    // Only pages with perm set can use the netstats.
++    this.hasPrivileges = perm == Ci.nsIPermissionManager.ALLOW_ACTION;
++
++    if (!this.hasPrivileges) {
++      Services.perms.addFromPrincipal(principal, "networkstats-manage",
++                                    Ci.nsIPermissionManager.ALLOW_ACTION)
++    }
++
++    // Init app properties.
++    let appsService = Cc["@mozilla.org/AppsService;1"]
++                        .getService(Ci.nsIAppsService);
++
++    this.manifestURL = appsService.getManifestURLByLocalId(principal.appId);
++
++    let isApp = !!this.manifestURL.length;
++    if (isApp) {
++      this.pageURL = principal.URI.spec;
++    }
++
++    // Setup Observers
++    Services.obs.addObserver(FxOSUService, "xpcom-shutdown", false);
++    Services.obs.addObserver(FxOSUService, "memory-pressure", false);
++  },
++
++  observe: function(aSubject, aTopic, aData) 
++  {
++    if (aTopic == "xpcom-shutdown"){
++      Services.obs.removeObserver(this, "xpcom-shutdown", false);
++      Services.obs.removeObserver(this, "memory-pressure", false);
++    }
++    else if (aTopic == "memory-pressure"){
++      var usage = this.memoryManager();
++      var explicit = " Explicit: " + usage[0].toString();
++      var resident = " Resident: " + usage[1].toString();
++      lastMemEventExplicit = usage[0];
++      lastMemEventRes = usage[1];
++      this.window.console.log("Memory Pressure Event Happened! " + aData + explicit + resident);
++    }
++  },  
++
++  //Callable function which displays the current memory usage. Is automatically called when a low-memory event occurs 
++  memoryManager: function() {
++    this.window.console.log("Resident: " + lastMemEventRes + " Explicit: " + lastMemEventExplicit);
++    return [memoryReportManager.explicit, memoryReportManager.resident];
++  },
++ 
++  receivedBytes: function(start, end) {
++    // TODO: Does NOT account for the fact that a response will not be had if the connection is broken?
++    // start and end are expected to be unix time integers
++    start = typeof start !== 'undefined' ? new Date(start) : new Date(0);
++    end = typeof end !== 'undefined' ? new Date(end) : new Date();
++    
++    var recBytes = 0;
++    for (var i = 0; i < responseStats.length; i++) {
++      if (responseStats[i].date >= start && responseStats[i].date <= end) {
++        if (responseStats[i].requestSucceeded) {
++          recBytes += responseStats[i].contentLength;
++        }
++      }
++    }
++    return recBytes;
++  },
++  
++  successRate: function(start, end) {
++    // TODO: Check
++    // start and end are expected to be unix time integers
++    start = typeof start !== 'undefined' ? new Date(start) : new Date(0);
++    end = typeof end !== 'undefined' ? new Date(end) : new Date();
++    
++    var successes = 0;
++    for (var i = 0; i < responseStats.length; i++) {
++      if (responseStats[i].date >= start && responseStats[i].date <= end) {
++        if (responseStats[i].requestSucceeded) {
++          successes += 1;
++        }
++      }
++    }
++    return {rate: successes / responseStats.length,
++            successes: successes,
++            attempted: responseStats.length};
++  },
++ 
++  isConnectionStable: function(start, end) {
++    // start and end are expected to be unix time integers
++    start = typeof start !== 'undefined' ? new Date(start) : new Date(0);
++    end = typeof end !== 'undefined' ? new Date(end) : new Date();
++    
++    var stable = true;
++    for (var i = 0; i < responseStats.length; i++) {
++      if (responseStats[i].date >= start && responseStats[i].date <= end) {
++        if (!responseStats[i].requestSucceeded) {
++          stable = false;
++          break;
++        }
++      }
++    }
++    return stable;
++  },
++
++  batteryLevel: function() { // This will be false when device is 100%, more than likely
++    return this.window.navigator.battery.level;
++  },
++
++  batteryCharging: function() {
++    return this.window.navigator.battery.charging;
++  },
++
++  latencyInfo: function() {
++      var t = this.window.performance.timing;
++      var timeInfo = {};
++      timeInfo.navigation_type = this.window.performance.navigation.type;
++      timeInfo.navigation_redirectCount = this.window.performance.navigation.redirectCount;
++      timeInfo.prep = t.redirectStart - t.navigationStart;
++      timeInfo.redirect = t.redirectEnd - t.redirectStart;
++      timeInfo.unload = t.unloadEventEnd - t.unloadEventStart;
++      timeInfo.r_to_f = t.fetchStart - t.redirectEnd;
++      timeInfo.fetch = t.domainLookupStart - t.fetchStart;
++      timeInfo.dnslookup = t.domainLookupEnd - t.domainLookupStart;
++      timeInfo.d_to_c = t.connectStart - t.domainLookupEnd;
++      timeInfo.connection = t.connectEnd - t.connectStart;
++      timeInfo.c_to_req = t.requestStart - t.connectEnd;
++      timeInfo.request = t.responseStart - t.requestStart;
++      timeInfo.response = t.responseEnd - t.responseStart;
++      timeInfo.res_to_dom = t.domLoading - t.responseEnd;
++      timeInfo.domLoading = t.domInteractive - t.domLoading;
++      timeInfo.domInteractive = t.domContentLoadedEventStart - t.domInteractive;
++      timeInfo.domContentLoaded = t.domContentLoadedEventEnd - t.domContentLoadedEventStart;
++      timeInfo.domComplete = t.domComplete - t.domContentLoadedEventEnd;
++      timeInfo.dom_to_onload = t.loadEventStart - t.domComplete;
++      timeInfo.loadEvent = t.loadEventEnd - t.loadEventStart;
++      timeInfo.networkLatency = t.responseEnd - t.fetchStart;
++      timeInfo.pageLoadingTime = t.loadEventEnd - t.responseEnd;
++      timeInfo.totalTimeElapsed = t.loadEventEnd - t.navigationStart;
++    return timeInfo;
++  },
++
++  connectionType: function() {
++    // Note: As of Gecko 8.0, all Operating Systems currently return LINK_TYPE_UNKNOWN. 
++    //       Android support was backed out due to perceived security concerns, see bug 691054.
++    return networkLinkService.linkType; // Returns 0 for UNKNOWN
++  },
++
++  connectionUp: function() {
++    if (networkLinkService.linkStatusKnown) {
++      return networkLinkService.isLinkUp;
++    } else {
++      return true; // so we don't block
++    }
++  },
++
++  connectionQuality: function() {
++    // Return 0 to 1
++    // Possibly Useful
++      // navigator.connection.bandwidth;
++      // navigator.connection.metered; // pay-per-use
++      
++    switch (this.connectionType()) {
++      case networkLinkService.LINK_TYPE_UNKNOWN:
++        return 1.00; // so we don't block
++      case networkLinkService.LINK_TYPE_ETHERNET:
++        break;
++      case networkLinkService.LINK_TYPE_USB:
++        break;
++      case networkLinkService.LINK_TYPE_WIFI:
++        break;
++      case networkLinkService.LINK_TYPE_WIMAX:
++        break;
++      case networkLinkService.LINK_TYPE_2G:
++        break;
++      case networkLinkService.LINK_TYPE_3G:
++        break;
++      case networkLinkService.LINK_TYPE_4G:
++        break;
++      default:
++        return 1.00; // so we don't block
++    }
++  },
++
++  mozIsNowGood: function(level, mustCharge) {
++    level = typeof level !== 'undefined' ? level : 2;
++    // Levels of certainty
++      // 1 - High
++      // 2 - Moderate
++      // 3 - Low
++    var batLev = this.batteryLevel();
++    var batCha = this.batteryCharging();
++    var conUp = this.connectionUp();
++    var conQual = this.connectionQuality();
++
++    // Need internet connection
++    if (!conUp) {
++      return false;
++    }
++    if(mustCharge && !batCha){
++      return false;
++    }
++
++    // Certainty level differences
++    switch(parseInt(level)) {
++      case 1:
++        this.window.console.log("Level parsed as 1");
++        // if battery is > 90%, go
++        // elif battery is >70% and < 90%, but is charging, go
++        // else, nogo
++        if (batLev > 0.9) {
++          if (conQual > 0.5) {
++            return true;
++          } else {
++            return false;
++          }
++        } else if ((0.7 < batLev < 0.9) && batCha) {
++          if (conQual > 0.5) {
++            return true;
++          } else {
++            return false;
++          }
++          return true;
++        } else {
++          if (conQual > 0.7) {
++            return true;
++          } else if ((conQual > 0.5) && batCha) {
++            return true;
++          } else {
++            return false;
++          }
++        }
++        break;
++      case 2:
++        this.window.console.log("Level parsed as 2");
++        // if battery is > 60%, go
++        // elif battery is >30% and < 60%, but is charging, go
++        // else, nogo
++        if (batLev > 0.6) {
++          if (conQual > 0.3) {
++            return true;
++          } else {
++            return false;
++          }
++        } else if ((0.3 < batLev < 0.6) && batCha) {
++          if (conQual > 0.3) {
++            return true;
++          } else {
++            return false;
++          }
++          return true;
++        } else {
++          if (conQual > 0.5) {
++            return true;
++          } else if ((conQual > 0.3) && batCha) {
++            return true;
++          } else {
++            return false;
++          }
++        }
++        break;
++      case 3:
++        this.window.console.log("Level parsed as 3");
++        // if battery is >30%, go
++        // elif battery is >10% and < 30%, but is charging, go
++        // else, nogo
++        if (batLev > 0.3) {
++          if (conQual > 0.3) {
++            return true;
++          } else {
++            return false;
++          }
++        } else if ((0.1 < batLev < 0.3) && batCha) {
++          if (conQual > 0.3) {
++            return true;
++          } else {
++            return false;
++          }
++          return true;
++        } else {
++          if (conQual > 0.5) {
++            return true;
++          } else if ((conQual > 0.3) && batCha) {
++            return true;
++          } else {
++            return false;
++          }
++        }
++        break;
++      default:
++        return true; // so we don't block
++    }
++  },
++ 
++  classID : Components.ID("{9c72ce25-06d6-4fb8-ae9c-431652fce848}"),
++  contractID : "@mozilla.org/fxosuService;1",
++  classDescription: "fxOSUService",
++  _xpcom_categories: [{ category: "app-startup", service: true }],
++  QueryInterface : XPCOMUtils.generateQI([Ci.nsISupports,
++                                          Ci.nsIObserver,
++                                          Ci.nsIDOMGlobalPropertyInitializer,
++                                          Ci.nsISupportsWeakReference]),
++}
++
++this.NSGetFactory = XPCOMUtils.generateNSGetFactory([FxOSUService]);
+diff --git a/dom/fxosu/FxOSUService.manifest b/dom/fxosu/FxOSUService.manifest
+new file mode 100644
+--- /dev/null
++++ b/dom/fxosu/FxOSUService.manifest
+@@ -0,0 +1,3 @@
++component {9c72ce25-06d6-4fb8-ae9c-431652fce848} FxOSUService.js
++contract @mozilla.org/fxosuService;1 {9c72ce25-06d6-4fb8-ae9c-431652fce848}
++category app-startup FxOSUService service,@mozilla.org/fxosuService;1
+\ No newline at end of file
+diff --git a/dom/fxosu/moz.build b/dom/fxosu/moz.build
+new file mode 100644
+--- /dev/null
++++ b/dom/fxosu/moz.build
+@@ -0,0 +1,10 @@
++# -*- Mode: python; c-basic-offset: 4; indent-tabs-mode: nil; tab-width: 40 -*-
++# vim: set filetype=python:
++# This Source Code Form is subject to the terms of the Mozilla Public
++# License, v. 2.0. If a copy of the MPL was not distributed with this
++# file, You can obtain one at http://mozilla.org/MPL/2.0/.
++
++EXTRA_COMPONENTS += [
++    'FxOSUService.js',
++    'FxOSUService.manifest',
++]
+diff --git a/dom/moz.build b/dom/moz.build
+--- a/dom/moz.build
++++ b/dom/moz.build
+@@ -50,16 +50,17 @@ DIRS += [
+     'battery',
+     'browser-element',
+     'cache',
+     'canvas',
+     'cellbroadcast',
+     'contacts',
+     'crypto',
+     'phonenumberutils',
++    'fxosu',
+     'alarm',
+     'datastore',
+     'devicestorage',
+     'encoding',
+     'events',
+     'fetch',
+     'filehandle',
+     'filesystem',
+diff --git a/dom/network/NetworkStatsService.jsm b/dom/network/NetworkStatsService.jsm
+--- a/dom/network/NetworkStatsService.jsm
++++ b/dom/network/NetworkStatsService.jsm
+@@ -23,16 +23,18 @@ Cu.import("resource://gre/modules/Timer.
+ const NET_NETWORKSTATSSERVICE_CONTRACTID = "@mozilla.org/network/netstatsservice;1";
+ const NET_NETWORKSTATSSERVICE_CID = Components.ID("{18725604-e9ac-488a-8aa0-2471e7f6c0a4}");
+ 
+ const TOPIC_BANDWIDTH_CONTROL = "netd-bandwidth-control"
+ 
+ const TOPIC_CONNECTION_STATE_CHANGED = "network-connection-state-changed";
+ const NET_TYPE_WIFI = Ci.nsINetworkInterface.NETWORK_TYPE_WIFI;
+ const NET_TYPE_MOBILE = Ci.nsINetworkInterface.NETWORK_TYPE_MOBILE;
++const HTTP_ON_REQUEST = "http-on-modify-request";
++const HTTP_ON_RESPONSE = "http-on-examine-response";
+ 
+ // Networks have different status that NetworkStats API needs to be aware of.
+ // Network is present and ready, so NetworkManager provides the whole info.
+ const NETWORK_STATUS_READY   = 0;
+ // Network is present but hasn't established a connection yet (e.g. SIM that has not
+ // enabled 3G since boot).
+ const NETWORK_STATUS_STANDBY = 1;
+ // Network is not present, but stored in database by the previous connections.
+@@ -72,16 +74,18 @@ XPCOMUtils.defineLazyServiceGetter(this,
+ this.NetworkStatsService = {
+   init: function() {
+     debug("Service started");
+ 
+     Services.obs.addObserver(this, "xpcom-shutdown", false);
+     Services.obs.addObserver(this, TOPIC_CONNECTION_STATE_CHANGED, false);
+     Services.obs.addObserver(this, TOPIC_BANDWIDTH_CONTROL, false);
+     Services.obs.addObserver(this, "profile-after-change", false);
++    Services.obs.addObserver(this, HTTP_ON_REQUEST, false);
++    Services.obs.addObserver(this, HTTP_ON_RESPONSE, false);
+ 
+     this.timer = Cc["@mozilla.org/timer;1"].createInstance(Ci.nsITimer);
+ 
+     // Object to store network interfaces, each network interface is composed
+     // by a network object (network type and network Id) and a interfaceName
+     // that contains the name of the physical interface (wlan0, rmnet0, etc.).
+     // The network type can be 0 for wifi or 1 for mobile. On the other hand,
+     // the network id is '0' for wifi or the iccid for mobile (SIM).
+@@ -212,27 +216,46 @@ this.NetworkStatsService = {
+             if (Object.getOwnPropertyNames(currentAlarm).length !== 0) {
+               this._fireAlarm(currentAlarm.alarm);
+             }
+             break;
+           }
+         }
+         break;
+ 
++      case HTTP_ON_REQUEST:
++        // Everything currently shows up as not available
++        var result = {uri: aSubject.URI.spec,
++                      date: new Date()}; // Approximate, since it's set now, and not at request
++        ppmm.broadcastAsyncMessage("NetworkStatsService:Request", result);
++        break;
++
++      case HTTP_ON_RESPONSE:
++        var result = {contentLength: parseInt(aSubject.getResponseHeader("Content-Length")),
++                      date: new Date(aSubject.getResponseHeader("Date")),
++                      contentType: aSubject.getResponseHeader("Content-Type"),
++                      uri: aSubject.URI.spec,
++                      isNoCache: aSubject.isNoCacheResponse(),
++                      requestSucceeded: aSubject.requestSucceeded};
++        ppmm.broadcastAsyncMessage("NetworkStatsService:Response", result);
++        break;
++
+       case "xpcom-shutdown":
+         debug("Service shutdown");
+ 
+         this.messages.forEach(function(aMsgName) {
+           ppmm.removeMessageListener(aMsgName, this);
+         }, this);
+ 
+         Services.obs.removeObserver(this, "xpcom-shutdown");
+         Services.obs.removeObserver(this, "profile-after-change");
+         Services.obs.removeObserver(this, TOPIC_CONNECTION_STATE_CHANGED);
+         Services.obs.removeObserver(this, TOPIC_BANDWIDTH_CONTROL);
++        Services.obs.removeObserver(this, HTTP_ON_REQUEST, false);
++        Services.obs.removeObserver(this, HTTP_ON_RESPONSE, false);
+ 
+         this.timer.cancel();
+         this.timer = null;
+ 
+         // Update stats before shutdown
+         this.updateAllStats();
+         break;
+     }
+diff --git a/dom/webidl/FxOSUService.webidl b/dom/webidl/FxOSUService.webidl
+new file mode 100644
+--- /dev/null
++++ b/dom/webidl/FxOSUService.webidl
+@@ -0,0 +1,56 @@
++/* -*- Mode: IDL; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
++/* This Source Code Form is subject to the terms of the Mozilla Public
++ * License, v. 2.0. If a copy of the MPL was not distributed with this file,
++ * You can obtain one at http://mozilla.org/MPL/2.0/.
++ */
++
++dictionary SuccessRateObject
++{
++  double rate = 0;
++  double successes = 0;
++  double attempted = 0;
++};
++
++dictionary LatencyObject 
++{
++  double navigation_type = 0;
++  double navigation_redirectCount = 0;
++  double prep = 0;
++  double redirect = 0;
++  double unload = 0;
++  double r_to_f = 0;
++  double fetch = 0;
++  double dnslookup = 0;
++  double d_to_c = 0;
++  double connection = 0;
++  double c_to_req = 0;
++  double request = 0;
++  double response = 0;
++  double res_to_dom = 0;
++  double domLoading = 0;
++  double domInteractive = 0;
++  double domContentLoaded = 0;
++  double domComplete = 0;
++  double dom_to_onload = 0;
++  double loadEvent = 0;
++  double networkLatency = 0;
++  double pageLoadingTime = 0;
++  double totalTimeElapsed = 0;
++};
++
++[JSImplementation="@mozilla.org/fxosuService;1",
++ NavigatorProperty="mozFxOSUService"]
++interface FxOSUService {
++  DOMString batteryLevel();
++  DOMString batteryCharging();
++  DOMRequest recentRxTx();
++  DOMString receivedBytes();
++  SuccessRateObject successRate();
++  LatencyObject latencyInfo();
++  DOMString memoryManager(); 
++  boolean isConnectionStable();
++  DOMString connectionType();
++  DOMString connectionUp();
++  DOMString connectionQuality();
++  DOMString mozIsNowGood();
++};
+diff --git a/dom/webidl/moz.build b/dom/webidl/moz.build
+--- a/dom/webidl/moz.build
++++ b/dom/webidl/moz.build
+@@ -147,16 +147,17 @@ WEBIDL_FILES = [
+     'FileReader.webidl',
+     'FileReaderSync.webidl',
+     'FocusEvent.webidl',
+     'FontFace.webidl',
+     'FontFaceSet.webidl',
+     'FontFaceSource.webidl',
+     'FormData.webidl',
+     'Function.webidl',
++    'FxOSUService.webidl',
+     'GainNode.webidl',
+     'Geolocation.webidl',
+     'GeometryUtils.webidl',
+     'GetUserMediaRequest.webidl',
+     'HDMIInputPort.webidl',
+     'Headers.webidl',
+     'HeapSnapshot.webidl',
+     'History.webidl',
+diff --git a/mobile/android/installer/package-manifest.in b/mobile/android/installer/package-manifest.in
+--- a/mobile/android/installer/package-manifest.in
++++ b/mobile/android/installer/package-manifest.in
+@@ -295,16 +295,18 @@
+ @BINPATH@/components/ChromeNotifications.js
+ @BINPATH@/components/ChromeNotifications.manifest
+ @BINPATH@/components/ConsoleAPI.manifest
+ @BINPATH@/components/ConsoleAPIStorage.js
+ @BINPATH@/components/ContactManager.js
+ @BINPATH@/components/ContactManager.manifest
+ @BINPATH@/components/PhoneNumberService.js
+ @BINPATH@/components/PhoneNumberService.manifest
++@BINPATH@/components/FxOSUService.js
++@BINPATH@/components/FxOSUService.manifest
+ @BINPATH@/components/NotificationStorage.js
+ @BINPATH@/components/NotificationStorage.manifest
+ @BINPATH@/components/SettingsManager.js
+ @BINPATH@/components/SettingsManager.manifest
+ @BINPATH@/components/BrowserElementParent.manifest
+ @BINPATH@/components/BrowserElementParent.js
+ @BINPATH@/components/FeedProcessor.manifest
+ @BINPATH@/components/FeedProcessor.js

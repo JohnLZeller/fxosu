@@ -29,23 +29,50 @@ The flow will be this (We will call the API mozIsNowGood, for the moment):
   * Needs to be fleshed out
 4. JS returns go/nogo answer to the caller of window.navigator.mozIsNowGood()
 
-## Prototype
-### add-on-via-sdk
-To run, move into this directory and run:
-> jpm run
-
-If jpm is not installed, then run:
-> npm install -g jpm
-
-### add-on-via-manifest
-The prototype works by running JavaScript in a Firefox bootstrapped add-on, thus providing access to APIs that need privileged access to use.
-In order to install, you must zip the contents of the prototype directory, renaming it to a .xpi file. From within the prototype directory:
-> zip -r prototypeapi.xpi ./*
-
-Next, open Firefox and go to Tools->Add-ons and then select "Install Add-on From File..." from the gear icon dropdown menu. Select the prototypeapi.xpi file from the prototype directory and then follow the Firefox install windows to finish the installation.
-
 ## Implementation
-Coming soon! :)
+Here is the [diff of mozilla-central with my changes](https://github.com/JohnLZeller/fxosu/blob/master/prototype.diff) to [mozilla-central](http://hg.mozilla.org/mozilla-central/).
+
+It is currently working for the following platforms:
+* Firefox Desktop (untested)
+* B2G Desktop (untested)
+* B2G Device
+* Firefox for Android (untested)
+
+### How to Build w/ Changes
+Pull down this repo, then cd into the mozilla-central (m-c) repo that you've already pulled down. Once in the m-c repo, run the command 'hg import path/to/prototype.diff' and that will apply the changes. Then when you run './mach build' it will build with the new changes!
+
+Once it is done building Firefox Desktop, you can launch it and proceed to the next step.
+
+### How to Use
+Once you've built and launched your new Firefox, you can open the console and get access to the API via navigator.mozFxOSUService and the following commands are available:
+* navigator.mozFxOSUService.batteryLevel();
+* navigator.mozFxOSUService.batteryCharging();
+* navigator.mozFxOSUService.recentRxTx();
+* navigator.mozFxOSUService.latencyInfo();
+* navigator.mozFxOSUService.showLatencyInfo(); # Use this to grab data
+* navigator.mozFxOSUService.connectionType();
+* navigator.mozFxOSUService.connectionUp();
+* navigator.mozFxOSUService.connectionQuality();
+* navigator.mozFxOSUService.mozIsNowGood();
+
+Additionally, there is a simple demo html page [here](https://github.com/JohnLZeller/fxosu/blob/master/demo.html).
+
+### Changes I've Made
+
+I have added the following files:
+* dom/fxosu/[FxOSUService.js](https://github.com/JohnLZeller/fxosu/blob/master/dom/fxosu/FxOSUService.js)
+* dom/fxosu/[FxOSUService.manifest](https://github.com/JohnLZeller/fxosu/blob/master/dom/fxosu/FxOSUService.manifest)
+* dom/fxosu/[moz.build](https://github.com/JohnLZeller/fxosu/blob/master/dom/fxosu/moz.build)
+* dom/webidl/[FxOSUService.webidl](https://github.com/JohnLZeller/fxosu/blob/master/dom/webidl/FxOSUService.webidl)
+
+And I have modified these files:
+* b2g/installer/[package-manifest.in](https://github.com/JohnLZeller/fxosu/blob/master/b2g/installer/package-manifest.in#L383-L384) (Lines 383 to 384)
+* browser/installer/[package-manifest.in](https://github.com/JohnLZeller/fxosu/blob/master/browser/installer/package-manifest.in#L552-L553) (Lines 552 to 553)
+* mobile/android/installer/[package-manifest.in](https://github.com/JohnLZeller/fxosu/blob/master/mobile/android/installer/package-manifest.in#L301-L302) (Lines 301 to 302)
+* dom/apps/[PermissionsTable.jsm](https://github.com/JohnLZeller/fxosu/blob/master/dom/apps/PermissionsTable.jsm#L218-L223) (Lines 218 to 223)
+* dom/webidl/[moz.build](https://github.com/JohnLZeller/fxosu/blob/master/dom/webidl/moz.build#L151) (Line 151)
+* dom/[moz.build](https://github.com/JohnLZeller/fxosu/blob/master/dom/moz.build#L56) (Line 56)
+* dom/network/[NetworkStatsService.jsm](https://github.com/JohnLZeller/fxosu/blob/master/dom/NetworkStatsService.jsm#L224-L239) (Lines 31-32, 82-83, 224-239, and 251-252)
 
 ## Requirements
 ### Week 6 (February 9th to 13th)
@@ -60,10 +87,10 @@ Coming soon! :)
 9. The prototype API should be able to function without error on Firefox for Desktop.
 
 ### Week 10 (March 9th to 13th)
-10. The API should be written in C++ and/or JavaScript.
+10. The API should be written in C++ or JavaScript.
 11. The API should integrate with existing efforts wherever possible.
 12. The API should be developer configurable, to provide a level of certainty about network quality.
-13. The API should passively collect network status information.
+13. Write a Web IDL specification for the API implementation.
 14. The API should take into account the type of network connection, whether it be wifi, cellular data, etc.
 15. The API should be able to access data about system load on the device in order to determine if the device can handle another task.
 16. The API should be able to access data on the battery level of the device in order to determine if a task should be executed.
@@ -71,12 +98,12 @@ Coming soon! :)
 18. The API should be able to access latency-related network information to determine if a task should be executed.
 
 ### Spring Term (May 4th to 8th)
-19. The API should be able to access data on the charging state of the device in order to determine if a task should be executed.
-20. The API should analyze network data to determine patterns in network reliability
-21. The API should be able to function without error on Firefox OS, Firefox for Android, and Firefox for Desktop
-22. The test app for the API should benchmark device resource usage, contrasting use with the API and use without the API
-23. The test app for the API should be written to function on Firefox OS, Firefox for Android, and Firefox for Desktop
-24. Write a Web IDL specification for the API implementation
+19. The API should analyze network data to determine patterns in network reliability.
+20. The test app for the API should benchmark device resource usage, contrasting use with the API and use without the API.
+21. The API should integrate with existing efforts wherever possible.
+22. The API should be able to function without error on Firefox OS, Firefox for Android, and Firefox for Desktop.
+23. The test app for the API should be written to function on Firefox OS, Firefox for Android, and Firefox for Desktop.
+24. The API should passively collect network status information.
 
 ## Useful Resources
 ### Documentation
