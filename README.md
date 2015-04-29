@@ -30,7 +30,7 @@ The flow will be this (We will call the API mozIsNowGood, for the moment):
 4. JS returns go/nogo answer to the caller of window.navigator.mozIsNowGood()
 
 ## Implementation
-Here is the [diff of mozilla-central with my changes](https://github.com/JohnLZeller/fxosu/blob/master/prototype.diff) to [mozilla-central](http://hg.mozilla.org/mozilla-central/).
+Here is the [diff of mozilla-central with my changes](https://github.com/JohnLZeller/fxosu/blob/master/fxosu.diff) to [mozilla-central](http://hg.mozilla.org/mozilla-central/).
 
 It is currently working for the following platforms:
 * Firefox Desktop (untested)
@@ -48,14 +48,15 @@ Once you've built and launched your new Firefox, you can open the console and ge
 * navigator.mozFxOSUService.batteryLevel();
 * navigator.mozFxOSUService.batteryCharging();
 * navigator.mozFxOSUService.recentRxTx();
+* navigator.mozFxOSUService.receivedBytes();
+* navigator.mozFxOSUService.successRate();
+* navigator.mozFxOSUService.isConnectionStable();
 * navigator.mozFxOSUService.latencyInfo();
-* navigator.mozFxOSUService.showLatencyInfo(); # Use this to grab data
+* navigator.mozFxOSUService.memoryManager();
 * navigator.mozFxOSUService.connectionType();
 * navigator.mozFxOSUService.connectionUp();
 * navigator.mozFxOSUService.connectionQuality();
 * navigator.mozFxOSUService.mozIsNowGood();
-
-Additionally, there is a simple demo html page [here](https://github.com/JohnLZeller/fxosu/blob/master/demo.html).
 
 ### Changes I've Made
 
@@ -66,13 +67,13 @@ I have added the following files:
 * dom/webidl/[FxOSUService.webidl](https://github.com/JohnLZeller/fxosu/blob/master/dom/webidl/FxOSUService.webidl)
 
 And I have modified these files:
-* b2g/installer/[package-manifest.in](https://github.com/JohnLZeller/fxosu/blob/master/b2g/installer/package-manifest.in#L383-L384) (Lines 383 to 384)
-* browser/installer/[package-manifest.in](https://github.com/JohnLZeller/fxosu/blob/master/browser/installer/package-manifest.in#L552-L553) (Lines 552 to 553)
-* mobile/android/installer/[package-manifest.in](https://github.com/JohnLZeller/fxosu/blob/master/mobile/android/installer/package-manifest.in#L301-L302) (Lines 301 to 302)
+* b2g/installer/[package-manifest.in](https://github.com/JohnLZeller/fxosu/blob/master/b2g/installer/package-manifest.in#L387-L388) (Lines 387 to 388)
+* browser/installer/[package-manifest.in](https://github.com/JohnLZeller/fxosu/blob/master/browser/installer/package-manifest.in#L556-L557) (Lines 556 to 557)
+* mobile/android/installer/[package-manifest.in](https://github.com/JohnLZeller/fxosu/blob/master/mobile/android/installer/package-manifest.in#L303-L304) (Lines 303 to 304)
 * dom/apps/[PermissionsTable.jsm](https://github.com/JohnLZeller/fxosu/blob/master/dom/apps/PermissionsTable.jsm#L218-L223) (Lines 218 to 223)
-* dom/webidl/[moz.build](https://github.com/JohnLZeller/fxosu/blob/master/dom/webidl/moz.build#L151) (Line 151)
-* dom/[moz.build](https://github.com/JohnLZeller/fxosu/blob/master/dom/moz.build#L56) (Line 56)
-* dom/network/[NetworkStatsService.jsm](https://github.com/JohnLZeller/fxosu/blob/master/dom/NetworkStatsService.jsm#L224-L239) (Lines 31-32, 82-83, 224-239, and 251-252)
+* dom/webidl/[moz.build](https://github.com/JohnLZeller/fxosu/blob/master/dom/webidl/moz.build#L155) (Line 155)
+* dom/[moz.build](https://github.com/JohnLZeller/fxosu/blob/master/dom/moz.build#L58) (Line 58)
+* dom/network/[NetworkStatsService.jsm](https://github.com/JohnLZeller/fxosu/blob/master/dom/network/NetworkStatsService.jsm#L224-L239) (Lines 31-32, 82-83, 224-239, and 251-252)
 
 ## Requirements
 ### Week 6 (February 9th to 13th)
