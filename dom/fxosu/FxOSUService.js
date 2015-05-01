@@ -4,7 +4,7 @@
 
 "use strict";
 
-const DEBUG = true;
+const DEBUG = false;
 function debug(s) { dump("-*- FxOSUService.js: " + s + "\n"); }
 
 const Cc = Components.classes;
@@ -53,6 +53,7 @@ function receiveMessage(aMessage) {
       break;
     case "NetworkStatsService:Response":
       responseStats.push(aMessage.json);
+      dump("RESPONSE: " + aMessage.json.requestSucceeded + " - " + aMessage.json.uri);
       break;
     default:
       if (DEBUG) {
@@ -84,6 +85,8 @@ FxOSUService.prototype = {
   init: function(aWindow) {
     this.window = aWindow;
 
+    // Disabling - Not necessary for testing
+    /*
     // Set navigator.mozNetworkStats to null.
     if (!Services.prefs.getBoolPref("dom.mozNetworkStats.enabled")) {
       return null;
@@ -114,14 +117,14 @@ FxOSUService.prototype = {
     if (isApp) {
       this.pageURL = principal.URI.spec;
     }
+    */
 
     // Setup Observers
     Services.obs.addObserver(FxOSUService, "xpcom-shutdown", false);
     Services.obs.addObserver(FxOSUService, "memory-pressure", false);
   },
 
-  observe: function(aSubject, aTopic, aData) 
-  {
+  observe: function(aSubject, aTopic, aData) {
     if (aTopic == "xpcom-shutdown"){
       Services.obs.removeObserver(this, "xpcom-shutdown", false);
       Services.obs.removeObserver(this, "memory-pressure", false);
@@ -139,16 +142,53 @@ FxOSUService.prototype = {
   //Callable function which displays the current memory usage. Is automatically called when a low-memory event occurs 
   memoryManager: function() {
     this.window.console.log("Resident: " + lastMemEventRes + " Explicit: " + lastMemEventExplicit);
-    return [memoryReportManager.explicit, memoryReportManager.resident];
+    return {explicit: memoryReportManager.explicit, 
+            resident: memoryReportManager.resident};
   },
  
-  receivedBytes: function(start, end) {
+  numRequests: function(lastMillisecs) {
+    var end = new Date();
+    lastMillisecs = typeof lastMillisecs !== 'undefined' ? lastMillisecs : end.getTime();
+    var start = new Date(end - lastMillisecs);
+
+    var sent = 0;
+
+    // Could just return requestStats.length, but we want the option to constrain on time range
+    for (var i = 0; i < requestStats.length; i++) {
+      if (requestStats[i].date >= start && requestStats[i].date <= end) {
+        sent += 1;
+      }
+    }
+
+    return sent;
+  },
+
+  numResponses: function(lastMillisecs) {
+    var end = new Date();
+    lastMillisecs = typeof lastMillisecs !== 'undefined' ? lastMillisecs : end.getTime();
+    var start = new Date(end - lastMillisecs);
+
+    var received = 0;
+
+    // Could just return responseStats.length, but we want the option to constrain on time range
+    for (var i = 0; i < responseStats.length; i++) {
+      if (responseStats[i].date >= start && responseStats[i].date <= end) {
+        received += 1;
+      }
+    }
+
+    return received;
+  },
+
+  receivedBytes: function(lastMillisecs) {
     // TODO: Does NOT account for the fact that a response will not be had if the connection is broken?
-    // start and end are expected to be unix time integers
-    start = typeof start !== 'undefined' ? new Date(start) : new Date(0);
-    end = typeof end !== 'undefined' ? new Date(end) : new Date();
-    
+    // TODO: Needs bytes attempted
+
+    var end = new Date();
+    lastMillisecs = typeof lastMillisecs !== 'undefined' ? lastMillisecs : end.getTime();
+    var start = new Date(end - lastMillisecs);
     var recBytes = 0;
+
     for (var i = 0; i < responseStats.length; i++) {
       if (responseStats[i].date >= start && responseStats[i].date <= end) {
         if (responseStats[i].requestSucceeded) {
@@ -159,13 +199,22 @@ FxOSUService.prototype = {
     return recBytes;
   },
   
-  successRate: function(start, end) {
-    // TODO: Check
-    // start and end are expected to be unix time integers
-    start = typeof start !== 'undefined' ? new Date(start) : new Date(0);
-    end = typeof end !== 'undefined' ? new Date(end) : new Date();
-    
+  /* Returns a dictionary object that holds the rate, # of successes, and number of attempts.
+   * In order to ensure that we don't miss counting some, we will assume that all http requests
+   * that we witness, MUST be accompanied by an http response (one-to-one). So if everything is 
+   * good to go, we should have the same number of each.
+   */
+  successRate: function(lastMillisecs) {
+    // TODO: Check that
+
+    var end = new Date();
+    lastMillisecs = typeof lastMillisecs !== 'undefined' ? lastMillisecs : end.getTime();
+    var start = new Date(end - lastMillisecs);
     var successes = 0;
+    var attempted = this.numRequests(lastMillisecs);
+    var rate = 0.00;
+
+    // Count the successful responses
     for (var i = 0; i < responseStats.length; i++) {
       if (responseStats[i].date >= start && responseStats[i].date <= end) {
         if (responseStats[i].requestSucceeded) {
@@ -173,17 +222,62 @@ FxOSUService.prototype = {
         }
       }
     }
-    return {rate: successes / responseStats.length,
-            successes: successes,
-            attempted: responseStats.length};
+
+   // Make sure that rate stays a float, and not divide-by-zero error
+    try {
+      rate = successes / attempted;
+    } catch(e) {
+      rate = 1.00;
+    }
+    if (attempted === 0) {
+      rate = 1.00;
+    }
+
+    return {rate: parseFloat(rate),
+            successes: parseFloat(successes),
+            attempted: parseFloat(attempted)};
   },
- 
-  isConnectionStable: function(start, end) {
-    // start and end are expected to be unix time integers
-    start = typeof start !== 'undefined' ? new Date(start) : new Date(0);
-    end = typeof end !== 'undefined' ? new Date(end) : new Date();
+
+  /* Returns the success rate of only the most recent num number of responses.
+   * This method may leave out requests that never received a response.
+   */
+  successRateRecent: function(num) {
+    num = typeof num !== 'undefined' ? num : 0;
     
+    var successes = 0;
+    var rate = 0.00;
+    var stats = responseStats.slice(-num); // Clone array
+
+    // Count the successful responses
+    for (var i = 0; i < stats.length; i++) {
+      if (stats[i].date >= start && stats[i].date <= end) {
+        if (stats[i].requestSucceeded) {
+          successes += 1;
+        }
+      }
+    }
+
+   // Make sure that rate stays a float, and not divide-by-zero error
+    try {
+      rate = successes / stats.length;
+    } catch(e) {
+      rate = 1.00;
+    }
+    if (stats.length === 0) {
+      rate = 1.00;
+    }
+
+    return {rate: parseFloat(rate),
+            successes: parseFloat(successes),
+            attempted: parseFloat(stats.length)};
+  },
+  
+  isConnectionStable: function(lastMillisecs) {
+    var end = new Date();
+    lastMillisecs = typeof lastMillisecs !== 'undefined' ? lastMillisecs : end.getTime();
+    var start = new Date(end - lastMillisecs);
     var stable = true;
+
     for (var i = 0; i < responseStats.length; i++) {
       if (responseStats[i].date >= start && responseStats[i].date <= end) {
         if (!responseStats[i].requestSucceeded) {
@@ -239,6 +333,10 @@ FxOSUService.prototype = {
   },
 
   connectionUp: function() {
+    // Use of networkLinkService.isLinkUp can be unpredictable, which is why you must first 
+    // check networkLinkService.linkStatusKnown
+
+    // Want to use this.window.navigator.onLine, but it's not available
     if (networkLinkService.linkStatusKnown) {
       return networkLinkService.isLinkUp;
     } else {
@@ -274,114 +372,83 @@ FxOSUService.prototype = {
     }
   },
 
-  mozIsNowGood: function(level, mustCharge) {
+  // TODO: Add a function that let's you set a global waitSecs variable for mozIsNowGood
+
+  mozIsNowGood: function(level) {
     level = typeof level !== 'undefined' ? level : 2;
     // Levels of certainty
-      // 1 - High
+      // 1 - High (requires charging)
       // 2 - Moderate
       // 3 - Low
+
     var batLev = this.batteryLevel();
     var batCha = this.batteryCharging();
-    var conUp = this.connectionUp();
-    var conQual = this.connectionQuality();
-
-    // Need internet connection
-    if (!conUp) {
-      return false;
+    var waitSecs = 2000; // 2 seconds
+    var stable = this.isConnectionStable(waitSecs);
+    var success = this.successRate(waitSecs);
+    if (DEBUG) {
+      dump("Confidence Level: " + level + "\n" +
+           "Battery Level: " + batLev + "%\n" +
+           "Battery Charging: " + batCha + "\n" +
+           "Stable: " + stable + "\n" +
+           "Success Rate: " + success.rate.toFixed(2) + "% (" + success.successes + "\\" + success.attempted + ")\n\n");
     }
-    if(mustCharge && !batCha){
-      return false;
-    }
 
-    // Certainty level differences
-    switch(parseInt(level)) {
+    // Find reasons to return false only
+    switch (level) {
+      /* Battery MUST be charging
+       * Connection MUST be stable
+       * Battery level MUST be greater than 50%
+       * Success Rate MUST be 100% within the last waitSecs milliseconds
+       */
       case 1:
-        this.window.console.log("Level parsed as 1");
-        // if battery is > 90%, go
-        // elif battery is >70% and < 90%, but is charging, go
-        // else, nogo
-        if (batLev > 0.9) {
-          if (conQual > 0.5) {
-            return true;
-          } else {
-            return false;
-          }
-        } else if ((0.7 < batLev < 0.9) && batCha) {
-          if (conQual > 0.5) {
-            return true;
-          } else {
-            return false;
-          }
-          return true;
-        } else {
-          if (conQual > 0.7) {
-            return true;
-          } else if ((conQual > 0.5) && batCha) {
-            return true;
-          } else {
-            return false;
-          }
+        if (!batCha ||
+            !stable ||
+            (batLev < 0.5) ||
+            success.rate < 1) { 
+          return false; 
         }
         break;
+
+      /* Fails if:
+       * Battery is NOT charging, Battery level is LESS than 40%, AND Connection is NOT stable
+       * OR
+       * Battery is NOT charging, Battery level is LESS than 30%
+       * OR
+       * Battery level is LESS than 25%
+       * OR
+       * Success Rate is LESS than 50% within the last waitSecs milliseconds
+       */
       case 2:
-        this.window.console.log("Level parsed as 2");
-        // if battery is > 60%, go
-        // elif battery is >30% and < 60%, but is charging, go
-        // else, nogo
-        if (batLev > 0.6) {
-          if (conQual > 0.3) {
-            return true;
-          } else {
-            return false;
-          }
-        } else if ((0.3 < batLev < 0.6) && batCha) {
-          if (conQual > 0.3) {
-            return true;
-          } else {
-            return false;
-          }
-          return true;
-        } else {
-          if (conQual > 0.5) {
-            return true;
-          } else if ((conQual > 0.3) && batCha) {
-            return true;
-          } else {
-            return false;
-          }
+        if ((!batCha && (batLev < 0.4) && !stable) ||
+            (!batCha && (batLev < 0.3)) ||
+            (batLev < 0.25) ||
+            success.rate < 0.5) { 
+          return false; 
         }
         break;
+
+      /* Fails if:
+       * Battery level is LESS than 20%, AND Connection is NOT stable
+       * OR
+       * Battery level is LESS than 10%
+       * OR
+       * Success Rate is LESS than 5% within the last waitSecs milliseconds
+       */
       case 3:
-        this.window.console.log("Level parsed as 3");
-        // if battery is >30%, go
-        // elif battery is >10% and < 30%, but is charging, go
-        // else, nogo
-        if (batLev > 0.3) {
-          if (conQual > 0.3) {
-            return true;
-          } else {
-            return false;
-          }
-        } else if ((0.1 < batLev < 0.3) && batCha) {
-          if (conQual > 0.3) {
-            return true;
-          } else {
-            return false;
-          }
-          return true;
-        } else {
-          if (conQual > 0.5) {
-            return true;
-          } else if ((conQual > 0.3) && batCha) {
-            return true;
-          } else {
-            return false;
-          }
+        if (((batLev < 0.2) && !stable) ||
+            (batLev < 0.1) ||
+            success.rate < 0.05) { 
+          return false; 
         }
         break;
+
       default:
-        return true; // so we don't block
+        return true; // Never block
     }
+
+    // Never block
+    return true;
   },
  
   classID : Components.ID("{9c72ce25-06d6-4fb8-ae9c-431652fce848}"),

@@ -72,14 +72,14 @@ diff --git a/dom/fxosu/FxOSUService.js b/dom/fxosu/FxOSUService.js
 new file mode 100644
 --- /dev/null
 +++ b/dom/fxosu/FxOSUService.js
-@@ -0,0 +1,397 @@
+@@ -0,0 +1,464 @@
 +/* This Source Code Form is subject to the terms of the Mozilla Public
 + * License, v. 2.0. If a copy of the MPL was not distributed with this file,
 + * You can obtain one at http://mozilla.org/MPL/2.0/. */
 +
 +"use strict";
 +
-+const DEBUG = true;
++const DEBUG = false;
 +function debug(s) { dump("-*- FxOSUService.js: " + s + "\n"); }
 +
 +const Cc = Components.classes;
@@ -128,6 +128,7 @@ new file mode 100644
 +      break;
 +    case "NetworkStatsService:Response":
 +      responseStats.push(aMessage.json);
++      dump("RESPONSE: " + aMessage.json.requestSucceeded + " - " + aMessage.json.uri);
 +      break;
 +    default:
 +      if (DEBUG) {
@@ -159,6 +160,8 @@ new file mode 100644
 +  init: function(aWindow) {
 +    this.window = aWindow;
 +
++    // Disabling - Not necessary for testing
++    /*
 +    // Set navigator.mozNetworkStats to null.
 +    if (!Services.prefs.getBoolPref("dom.mozNetworkStats.enabled")) {
 +      return null;
@@ -189,14 +192,14 @@ new file mode 100644
 +    if (isApp) {
 +      this.pageURL = principal.URI.spec;
 +    }
++    */
 +
 +    // Setup Observers
 +    Services.obs.addObserver(FxOSUService, "xpcom-shutdown", false);
 +    Services.obs.addObserver(FxOSUService, "memory-pressure", false);
 +  },
 +
-+  observe: function(aSubject, aTopic, aData) 
-+  {
++  observe: function(aSubject, aTopic, aData) {
 +    if (aTopic == "xpcom-shutdown"){
 +      Services.obs.removeObserver(this, "xpcom-shutdown", false);
 +      Services.obs.removeObserver(this, "memory-pressure", false);
@@ -214,16 +217,53 @@ new file mode 100644
 +  //Callable function which displays the current memory usage. Is automatically called when a low-memory event occurs 
 +  memoryManager: function() {
 +    this.window.console.log("Resident: " + lastMemEventRes + " Explicit: " + lastMemEventExplicit);
-+    return [memoryReportManager.explicit, memoryReportManager.resident];
++    return {explicit: memoryReportManager.explicit, 
++            resident: memoryReportManager.resident};
 +  },
 + 
-+  receivedBytes: function(start, end) {
++  numRequests: function(lastMillisecs) {
++    var end = new Date();
++    lastMillisecs = typeof lastMillisecs !== 'undefined' ? lastMillisecs : end.getTime();
++    var start = new Date(end - lastMillisecs);
++
++    var sent = 0;
++
++    // Could just return requestStats.length, but we want the option to constrain on time range
++    for (var i = 0; i < requestStats.length; i++) {
++      if (requestStats[i].date >= start && requestStats[i].date <= end) {
++        sent += 1;
++      }
++    }
++
++    return sent;
++  },
++
++  numResponses: function(lastMillisecs) {
++    var end = new Date();
++    lastMillisecs = typeof lastMillisecs !== 'undefined' ? lastMillisecs : end.getTime();
++    var start = new Date(end - lastMillisecs);
++
++    var received = 0;
++
++    // Could just return responseStats.length, but we want the option to constrain on time range
++    for (var i = 0; i < responseStats.length; i++) {
++      if (responseStats[i].date >= start && responseStats[i].date <= end) {
++        received += 1;
++      }
++    }
++
++    return received;
++  },
++
++  receivedBytes: function(lastMillisecs) {
 +    // TODO: Does NOT account for the fact that a response will not be had if the connection is broken?
-+    // start and end are expected to be unix time integers
-+    start = typeof start !== 'undefined' ? new Date(start) : new Date(0);
-+    end = typeof end !== 'undefined' ? new Date(end) : new Date();
-+    
++    // TODO: Needs bytes attempted
++
++    var end = new Date();
++    lastMillisecs = typeof lastMillisecs !== 'undefined' ? lastMillisecs : end.getTime();
++    var start = new Date(end - lastMillisecs);
 +    var recBytes = 0;
++
 +    for (var i = 0; i < responseStats.length; i++) {
 +      if (responseStats[i].date >= start && responseStats[i].date <= end) {
 +        if (responseStats[i].requestSucceeded) {
@@ -234,13 +274,22 @@ new file mode 100644
 +    return recBytes;
 +  },
 +  
-+  successRate: function(start, end) {
-+    // TODO: Check
-+    // start and end are expected to be unix time integers
-+    start = typeof start !== 'undefined' ? new Date(start) : new Date(0);
-+    end = typeof end !== 'undefined' ? new Date(end) : new Date();
-+    
++  /* Returns a dictionary object that holds the rate, # of successes, and number of attempts.
++   * In order to ensure that we don't miss counting some, we will assume that all http requests
++   * that we witness, MUST be accompanied by an http response (one-to-one). So if everything is 
++   * good to go, we should have the same number of each.
++   */
++  successRate: function(lastMillisecs) {
++    // TODO: Check that
++
++    var end = new Date();
++    lastMillisecs = typeof lastMillisecs !== 'undefined' ? lastMillisecs : end.getTime();
++    var start = new Date(end - lastMillisecs);
 +    var successes = 0;
++    var attempted = this.numRequests(lastMillisecs);
++    var rate = 0.00;
++
++    // Count the successful responses
 +    for (var i = 0; i < responseStats.length; i++) {
 +      if (responseStats[i].date >= start && responseStats[i].date <= end) {
 +        if (responseStats[i].requestSucceeded) {
@@ -248,17 +297,62 @@ new file mode 100644
 +        }
 +      }
 +    }
-+    return {rate: successes / responseStats.length,
-+            successes: successes,
-+            attempted: responseStats.length};
++
++   // Make sure that rate stays a float, and not divide-by-zero error
++    try {
++      rate = successes / attempted;
++    } catch(e) {
++      rate = 1.00;
++    }
++    if (attempted === 0) {
++      rate = 1.00;
++    }
++
++    return {rate: parseFloat(rate),
++            successes: parseFloat(successes),
++            attempted: parseFloat(attempted)};
 +  },
-+ 
-+  isConnectionStable: function(start, end) {
-+    // start and end are expected to be unix time integers
-+    start = typeof start !== 'undefined' ? new Date(start) : new Date(0);
-+    end = typeof end !== 'undefined' ? new Date(end) : new Date();
++
++  /* Returns the success rate of only the most recent num number of responses.
++   * This method may leave out requests that never received a response.
++   */
++  successRateRecent: function(num) {
++    num = typeof num !== 'undefined' ? num : 0;
 +    
++    var successes = 0;
++    var rate = 0.00;
++    var stats = responseStats.slice(-num); // Clone array
++
++    // Count the successful responses
++    for (var i = 0; i < stats.length; i++) {
++      if (stats[i].date >= start && stats[i].date <= end) {
++        if (stats[i].requestSucceeded) {
++          successes += 1;
++        }
++      }
++    }
++
++   // Make sure that rate stays a float, and not divide-by-zero error
++    try {
++      rate = successes / stats.length;
++    } catch(e) {
++      rate = 1.00;
++    }
++    if (stats.length === 0) {
++      rate = 1.00;
++    }
++
++    return {rate: parseFloat(rate),
++            successes: parseFloat(successes),
++            attempted: parseFloat(stats.length)};
++  },
++  
++  isConnectionStable: function(lastMillisecs) {
++    var end = new Date();
++    lastMillisecs = typeof lastMillisecs !== 'undefined' ? lastMillisecs : end.getTime();
++    var start = new Date(end - lastMillisecs);
 +    var stable = true;
++
 +    for (var i = 0; i < responseStats.length; i++) {
 +      if (responseStats[i].date >= start && responseStats[i].date <= end) {
 +        if (!responseStats[i].requestSucceeded) {
@@ -314,6 +408,10 @@ new file mode 100644
 +  },
 +
 +  connectionUp: function() {
++    // Use of networkLinkService.isLinkUp can be unpredictable, which is why you must first 
++    // check networkLinkService.linkStatusKnown
++
++    // Want to use this.window.navigator.onLine, but it's not available
 +    if (networkLinkService.linkStatusKnown) {
 +      return networkLinkService.isLinkUp;
 +    } else {
@@ -349,114 +447,83 @@ new file mode 100644
 +    }
 +  },
 +
-+  mozIsNowGood: function(level, mustCharge) {
++  // TODO: Add a function that let's you set a global waitSecs variable for mozIsNowGood
++
++  mozIsNowGood: function(level) {
 +    level = typeof level !== 'undefined' ? level : 2;
 +    // Levels of certainty
-+      // 1 - High
++      // 1 - High (requires charging)
 +      // 2 - Moderate
 +      // 3 - Low
++
 +    var batLev = this.batteryLevel();
 +    var batCha = this.batteryCharging();
-+    var conUp = this.connectionUp();
-+    var conQual = this.connectionQuality();
-+
-+    // Need internet connection
-+    if (!conUp) {
-+      return false;
++    var waitSecs = 2000; // 2 seconds
++    var stable = this.isConnectionStable(waitSecs);
++    var success = this.successRate(waitSecs);
++    if (DEBUG) {
++      dump("Confidence Level: " + level + "\n" +
++           "Battery Level: " + batLev + "%\n" +
++           "Battery Charging: " + batCha + "\n" +
++           "Stable: " + stable + "\n" +
++           "Success Rate: " + success.rate.toFixed(2) + "% (" + success.successes + "\\" + success.attempted + ")\n\n");
 +    }
-+    if(mustCharge && !batCha){
-+      return false;
-+    }
 +
-+    // Certainty level differences
-+    switch(parseInt(level)) {
++    // Find reasons to return false only
++    switch (level) {
++      /* Battery MUST be charging
++       * Connection MUST be stable
++       * Battery level MUST be greater than 50%
++       * Success Rate MUST be 100% within the last waitSecs milliseconds
++       */
 +      case 1:
-+        this.window.console.log("Level parsed as 1");
-+        // if battery is > 90%, go
-+        // elif battery is >70% and < 90%, but is charging, go
-+        // else, nogo
-+        if (batLev > 0.9) {
-+          if (conQual > 0.5) {
-+            return true;
-+          } else {
-+            return false;
-+          }
-+        } else if ((0.7 < batLev < 0.9) && batCha) {
-+          if (conQual > 0.5) {
-+            return true;
-+          } else {
-+            return false;
-+          }
-+          return true;
-+        } else {
-+          if (conQual > 0.7) {
-+            return true;
-+          } else if ((conQual > 0.5) && batCha) {
-+            return true;
-+          } else {
-+            return false;
-+          }
++        if (!batCha ||
++            !stable ||
++            (batLev < 0.5) ||
++            success.rate < 1) { 
++          return false; 
 +        }
 +        break;
++
++      /* Fails if:
++       * Battery is NOT charging, Battery level is LESS than 40%, AND Connection is NOT stable
++       * OR
++       * Battery is NOT charging, Battery level is LESS than 30%
++       * OR
++       * Battery level is LESS than 25%
++       * OR
++       * Success Rate is LESS than 50% within the last waitSecs milliseconds
++       */
 +      case 2:
-+        this.window.console.log("Level parsed as 2");
-+        // if battery is > 60%, go
-+        // elif battery is >30% and < 60%, but is charging, go
-+        // else, nogo
-+        if (batLev > 0.6) {
-+          if (conQual > 0.3) {
-+            return true;
-+          } else {
-+            return false;
-+          }
-+        } else if ((0.3 < batLev < 0.6) && batCha) {
-+          if (conQual > 0.3) {
-+            return true;
-+          } else {
-+            return false;
-+          }
-+          return true;
-+        } else {
-+          if (conQual > 0.5) {
-+            return true;
-+          } else if ((conQual > 0.3) && batCha) {
-+            return true;
-+          } else {
-+            return false;
-+          }
++        if ((!batCha && (batLev < 0.4) && !stable) ||
++            (!batCha && (batLev < 0.3)) ||
++            (batLev < 0.25) ||
++            success.rate < 0.5) { 
++          return false; 
 +        }
 +        break;
++
++      /* Fails if:
++       * Battery level is LESS than 20%, AND Connection is NOT stable
++       * OR
++       * Battery level is LESS than 10%
++       * OR
++       * Success Rate is LESS than 5% within the last waitSecs milliseconds
++       */
 +      case 3:
-+        this.window.console.log("Level parsed as 3");
-+        // if battery is >30%, go
-+        // elif battery is >10% and < 30%, but is charging, go
-+        // else, nogo
-+        if (batLev > 0.3) {
-+          if (conQual > 0.3) {
-+            return true;
-+          } else {
-+            return false;
-+          }
-+        } else if ((0.1 < batLev < 0.3) && batCha) {
-+          if (conQual > 0.3) {
-+            return true;
-+          } else {
-+            return false;
-+          }
-+          return true;
-+        } else {
-+          if (conQual > 0.5) {
-+            return true;
-+          } else if ((conQual > 0.3) && batCha) {
-+            return true;
-+          } else {
-+            return false;
-+          }
++        if (((batLev < 0.2) && !stable) ||
++            (batLev < 0.1) ||
++            success.rate < 0.05) { 
++          return false; 
 +        }
 +        break;
++
 +      default:
-+        return true; // so we don't block
++        return true; // Never block
 +    }
++
++    // Never block
++    return true;
 +  },
 + 
 +  classID : Components.ID("{9c72ce25-06d6-4fb8-ae9c-431652fce848}"),
@@ -556,7 +623,7 @@ diff --git a/dom/network/NetworkStatsService.jsm b/dom/network/NetworkStatsServi
      // that contains the name of the physical interface (wlan0, rmnet0, etc.).
      // The network type can be 0 for wifi or 1 for mobile. On the other hand,
      // the network id is '0' for wifi or the iccid for mobile (SIM).
-@@ -212,27 +216,46 @@ this.NetworkStatsService = {
+@@ -212,27 +216,45 @@ this.NetworkStatsService = {
              if (Object.getOwnPropertyNames(currentAlarm).length !== 0) {
                this._fireAlarm(currentAlarm.alarm);
              }
@@ -566,7 +633,6 @@ diff --git a/dom/network/NetworkStatsService.jsm b/dom/network/NetworkStatsServi
          break;
  
 +      case HTTP_ON_REQUEST:
-+        // Everything currently shows up as not available
 +        var result = {uri: aSubject.URI.spec,
 +                      date: new Date()}; // Approximate, since it's set now, and not at request
 +        ppmm.broadcastAsyncMessage("NetworkStatsService:Request", result);
@@ -607,62 +673,68 @@ diff --git a/dom/webidl/FxOSUService.webidl b/dom/webidl/FxOSUService.webidl
 new file mode 100644
 --- /dev/null
 +++ b/dom/webidl/FxOSUService.webidl
-@@ -0,0 +1,56 @@
+@@ -0,0 +1,62 @@
 +/* -*- Mode: IDL; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
 +/* This Source Code Form is subject to the terms of the Mozilla Public
-+ * License, v. 2.0. If a copy of the MPL was not distributed with this file,
-+ * You can obtain one at http://mozilla.org/MPL/2.0/.
++ * License, v. 2.0.00. If a copy of the MPL was not distributed with this file,
++ * You can obtain one at http://mozilla.org/MPL/2.0.00/.
 + */
 +
 +dictionary SuccessRateObject
 +{
-+  double rate = 0;
-+  double successes = 0;
-+  double attempted = 0;
++  float rate = 0.00;
++  float successes = 0.00;
++  float attempted = 0.00;
 +};
 +
 +dictionary LatencyObject 
 +{
-+  double navigation_type = 0;
-+  double navigation_redirectCount = 0;
-+  double prep = 0;
-+  double redirect = 0;
-+  double unload = 0;
-+  double r_to_f = 0;
-+  double fetch = 0;
-+  double dnslookup = 0;
-+  double d_to_c = 0;
-+  double connection = 0;
-+  double c_to_req = 0;
-+  double request = 0;
-+  double response = 0;
-+  double res_to_dom = 0;
-+  double domLoading = 0;
-+  double domInteractive = 0;
-+  double domContentLoaded = 0;
-+  double domComplete = 0;
-+  double dom_to_onload = 0;
-+  double loadEvent = 0;
-+  double networkLatency = 0;
-+  double pageLoadingTime = 0;
-+  double totalTimeElapsed = 0;
++  float navigation_type = 0.00;
++  float navigation_redirectCount = 0.00;
++  float prep = 0.00;
++  float redirect = 0.00;
++  float unload = 0.00;
++  float r_to_f = 0.00;
++  float fetch = 0.00;
++  float dnslookup = 0.00;
++  float d_to_c = 0.00;
++  float connection = 0.00;
++  float c_to_req = 0.00;
++  float request = 0.00;
++  float response = 0.00;
++  float res_to_dom = 0.00;
++  float domLoading = 0.00;
++  float domInteractive = 0.00;
++  float domContentLoaded = 0.00;
++  float domComplete = 0.00;
++  float dom_to_onload = 0.00;
++  float loadEvent = 0.00;
++  float networkLatency = 0.00;
++  float pageLoadingTime = 0.00;
++  float totalTimeElapsed = 0.00;
++};
++
++dictionary MemoryObject
++{
++  float explicit = 0.00;
++  float resident = 0.00;
 +};
 +
 +[JSImplementation="@mozilla.org/fxosuService;1",
 + NavigatorProperty="mozFxOSUService"]
 +interface FxOSUService {
-+  DOMString batteryLevel();
-+  DOMString batteryCharging();
++  boolean batteryLevel();
++  boolean batteryCharging();
 +  DOMRequest recentRxTx();
-+  DOMString receivedBytes();
-+  SuccessRateObject successRate();
++  float receivedBytes(optional float lastMillisecs);
++  SuccessRateObject successRate(optional float lastMillisecs);
 +  LatencyObject latencyInfo();
-+  DOMString memoryManager(); 
-+  boolean isConnectionStable();
-+  DOMString connectionType();
-+  DOMString connectionUp();
-+  DOMString connectionQuality();
-+  DOMString mozIsNowGood();
++  boolean isConnectionStable(optional float lastMillisecs);
++  MemoryObject memoryManager(); 
++  float connectionType();
++  boolean connectionUp();
++  float connectionQuality();
++  boolean mozIsNowGood(optional float level);
 +};
 diff --git a/dom/webidl/moz.build b/dom/webidl/moz.build
 --- a/dom/webidl/moz.build

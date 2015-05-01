@@ -1,56 +1,62 @@
 /* -*- Mode: IDL; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
 /* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this file,
- * You can obtain one at http://mozilla.org/MPL/2.0/.
+ * License, v. 2.0.00. If a copy of the MPL was not distributed with this file,
+ * You can obtain one at http://mozilla.org/MPL/2.0.00/.
  */
 
 dictionary SuccessRateObject
 {
-  double rate = 0;
-  double successes = 0;
-  double attempted = 0;
+  float rate = 0.00;
+  float successes = 0.00;
+  float attempted = 0.00;
 };
 
 dictionary LatencyObject 
 {
-  double navigation_type = 0;
-  double navigation_redirectCount = 0;
-  double prep = 0;
-  double redirect = 0;
-  double unload = 0;
-  double r_to_f = 0;
-  double fetch = 0;
-  double dnslookup = 0;
-  double d_to_c = 0;
-  double connection = 0;
-  double c_to_req = 0;
-  double request = 0;
-  double response = 0;
-  double res_to_dom = 0;
-  double domLoading = 0;
-  double domInteractive = 0;
-  double domContentLoaded = 0;
-  double domComplete = 0;
-  double dom_to_onload = 0;
-  double loadEvent = 0;
-  double networkLatency = 0;
-  double pageLoadingTime = 0;
-  double totalTimeElapsed = 0;
+  float navigation_type = 0.00;
+  float navigation_redirectCount = 0.00;
+  float prep = 0.00;
+  float redirect = 0.00;
+  float unload = 0.00;
+  float r_to_f = 0.00;
+  float fetch = 0.00;
+  float dnslookup = 0.00;
+  float d_to_c = 0.00;
+  float connection = 0.00;
+  float c_to_req = 0.00;
+  float request = 0.00;
+  float response = 0.00;
+  float res_to_dom = 0.00;
+  float domLoading = 0.00;
+  float domInteractive = 0.00;
+  float domContentLoaded = 0.00;
+  float domComplete = 0.00;
+  float dom_to_onload = 0.00;
+  float loadEvent = 0.00;
+  float networkLatency = 0.00;
+  float pageLoadingTime = 0.00;
+  float totalTimeElapsed = 0.00;
+};
+
+dictionary MemoryObject
+{
+  float explicit = 0.00;
+  float resident = 0.00;
 };
 
 [JSImplementation="@mozilla.org/fxosuService;1",
  NavigatorProperty="mozFxOSUService"]
 interface FxOSUService {
-  DOMString batteryLevel();
-  DOMString batteryCharging();
+  boolean batteryLevel();
+  boolean batteryCharging();
   DOMRequest recentRxTx();
-  DOMString receivedBytes();
-  SuccessRateObject successRate();
+  float receivedBytes(optional float lastMillisecs);
+  SuccessRateObject successRate(optional float lastMillisecs);
   LatencyObject latencyInfo();
-  DOMString memoryManager(); 
-  boolean isConnectionStable();
-  DOMString connectionType();
-  DOMString connectionUp();
-  DOMString connectionQuality();
-  DOMString mozIsNowGood();
+  boolean isConnectionStable(optional float lastMillisecs);
+  MemoryObject memoryManager(); 
+  float connectionType();
+  boolean connectionUp();
+  float connectionQuality();
+  boolean mozIsNowGood(optional float level);
 };
