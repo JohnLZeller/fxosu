@@ -1,0 +1,12 @@
+# Needs to be labeled .mozconfig, but it's without the dot to keep it visible in the repo
+
+# Build Firefox for Android:
+ac_add_options --enable-application=mobile/android
+
+# Chose one of the following for targets for x86 or ARM
+ac_add_options --target=i386-linux-android
+ac_add_options --target=arm-linux-androideabi
+
+# With the following Android SDK and NDK:
+ac_add_options --with-android-sdk="/path/to/android-sdk/platforms/android-22"
+ac_add_options --with-android-ndk="/path/to/android-ndk-r10e"
